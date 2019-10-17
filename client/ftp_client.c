@@ -64,5 +64,5 @@ int main(int argc, char *argv[]) {
 }
 
 void Usage() {
-    printf("Usage: ./ftp_client <ip_addr> <port>");
+    printf("Usage: ./ftp_client <ip_addr> <port>\n");
 }
