@@ -54,6 +54,10 @@ int main(int argc, char *argv[]) {
         memset(recv_buffer, 0, sizeof(recv_buffer)); // reset receiving buffer to 0s
 
         fgets(send_buffer, SEND_BUFFER_SIZE, stdin); // get user input string
+
+        // TODO: check if string input is 'ls client' and if so display files in client directory
+        // TODO: check if string input is 'u <file>' and if so send file to server
+
         send(socket_fd, send_buffer, SEND_BUFFER_SIZE, 0); // send user input string to server
     }
 
@@ -64,5 +68,5 @@ int main(int argc, char *argv[]) {
 }
 
 void Usage() {
-    printf("Usage: ./ftp_client <ip_addr> <port>");
+    printf("Usage: ./ftp_client <ip_addr> <port>\n");
 }

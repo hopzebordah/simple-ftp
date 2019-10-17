@@ -69,12 +69,14 @@ int main(int argc, char *argv[]) {
         char input_buffer[1000];
         memset(input_buffer, 0, sizeof(input_buffer));
 
-        while (strncmp(input_buffer, EXIT_COMMAND, 3) != 0) {
-            send(client_fd, PROMPT, strlen(PROMPT) + 1, 0);
-            memset(input_buffer, 0, sizeof(input_buffer));
-            int bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0);
+        while (strncmp(input_buffer, EXIT_COMMAND, 3) != 0) { // while the first three chars sent by client are not bye
+            send(client_fd, PROMPT, strlen(PROMPT) + 1, 0); // send the prompt
+            memset(input_buffer, 0, sizeof(input_buffer)); // reset the input buffer that stores data sent by client
+            int bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0); // receive data from client
             printf("received %d bytes\n", bytes_received);
-            printf("data is %s", input_buffer);
+            printf("data is %s", input_buffer); // print the data sent by client
+            // TODO: if user sends ls server then display files in server ftp directory
+            // TODO: if user sends d <file> then send specified file
         }
 
         printf("[+] closing connection from %s\n", inet_ntoa(client_addr.sin_addr));
