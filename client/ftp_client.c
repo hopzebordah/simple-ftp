@@ -11,10 +11,21 @@
 #define SEND_BUFFER_SIZE 50
 #define CLOSING_CONNECTION "Closing the connection\n"
 
+void Usage();
+
 int main(int argc, char *argv[]) {
 
-    char* address = "127.0.0.1";
-    char* port = "12000";
+    // char* address = "127.0.0.1";
+    // char* port = "12000";
+
+    if (argc > 3 || argc < 3) {
+        Usage();
+        exit(EXIT_SUCCESS);
+    }
+
+    char *address = argv[1];
+    char *port = argv[2];
+
     struct addrinfo hints, *addr_ptr;
     char recv_buffer[RECV_BUFFER_SIZE];
     char send_buffer[SEND_BUFFER_SIZE];
@@ -50,4 +61,8 @@ int main(int argc, char *argv[]) {
     freeaddrinfo(addr_ptr);
 
     return 0;
+}
+
+void Usage() {
+    printf("Usage: ./ftp_client <ip_addr> <port>");
 }
