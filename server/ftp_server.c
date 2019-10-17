@@ -9,9 +9,9 @@
 #include <arpa/inet.h>
 
 #define BACKLOG 5
-#define PROMPT "ftp>"
+#define PROMPT "ftp> "
 #define EXIT_COMMAND  "bye"
-#define CLOSING_CONNECTION "Closing the connection"
+#define CLOSING_CONNECTION "Closing the connection\n"
 
 int main(int argc, char *argv[]) {
 
@@ -59,18 +59,25 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
+        printf("[+] received connection from %s\n", inet_ntoa(client_addr.sin_addr));
+
         // dynamically allocate space for the commands sent from client
         // maybe with malloc()???
         char input_buffer[1000];
+        memset(input_buffer, 0, sizeof(input_buffer));
 
-        while (strcmp(input_buffer, EXIT_COMMAND) != 0) {
+        while (strncmp(input_buffer, EXIT_COMMAND, 3) != 0) {
             send(client_fd, PROMPT, strlen(PROMPT) + 1, 0);
             memset(input_buffer, 0, sizeof(input_buffer));
             int bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0);
-            printf("received %d bytes, data is %s", bytes_received, input_buffer);
+            printf("received %d bytes\n", bytes_received);
+            printf("data is %s", input_buffer);
         }
 
+        printf("[+] closing connection from %s\n", inet_ntoa(client_addr.sin_addr));
+
         send(client_fd, CLOSING_CONNECTION, strlen(CLOSING_CONNECTION) + 1, 0);
+        shutdown(client_fd, SHUT_RDWR);
         close(client_fd);
     }
 

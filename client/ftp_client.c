@@ -7,14 +7,17 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define BUFFER_SIZE 1000
+#define RECV_BUFFER_SIZE 1000
+#define SEND_BUFFER_SIZE 50
+#define CLOSING_CONNECTION "Closing the connection\n"
 
 int main(int argc, char *argv[]) {
 
     char* address = "127.0.0.1";
     char* port = "12000";
     struct addrinfo hints, *addr_ptr;
-    char buffer[BUFFER_SIZE];
+    char recv_buffer[RECV_BUFFER_SIZE];
+    char send_buffer[SEND_BUFFER_SIZE];
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -33,10 +36,14 @@ int main(int argc, char *argv[]) {
 
     connect(socket_fd, addr_ptr->ai_addr, addr_ptr->ai_addrlen);
 
-    int bytes_received;
-    while ((bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0)) != 0) {
-        printf("bytes received: %d\n", bytes_received);
-        printf("%s\n", buffer);
+    while (1) {
+        int bytes_received = recv(socket_fd, recv_buffer, sizeof(recv_buffer), 0); // receive prompt from server
+        printf("%s", recv_buffer); // print prompt
+        if (strcmp(recv_buffer, CLOSING_CONNECTION) == 0) break; // if prompt is close message, kill connection
+        memset(recv_buffer, 0, sizeof(recv_buffer)); // reset receiving buffer to 0s
+
+        fgets(send_buffer, SEND_BUFFER_SIZE, stdin); // get user input string
+        send(socket_fd, send_buffer, SEND_BUFFER_SIZE, 0); // send user input string to server
     }
 
     close(socket_fd);
