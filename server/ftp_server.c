@@ -13,6 +13,9 @@
 #define EXIT_COMMAND  "bye"
 #define CLOSING_CONNECTION "Closing the connection\n"
 
+// TODO: implement the use of pthreads to support simultaneous connections 
+// TODO: what is up with the backlog value?
+
 int main(int argc, char *argv[]) {
 
     if (argc < 2 || argc > 2) {
