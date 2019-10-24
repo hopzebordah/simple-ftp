@@ -6,12 +6,19 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <dirent.h>
 
 #define RECV_BUFFER_SIZE 1000
-#define SEND_BUFFER_SIZE 50
+#define INPUT_MAX_SIZE 1000
 #define CLOSING_CONNECTION "Closing the connection\n"
+#define LIST_CLIENT_FILES "ls client"
 
-void Usage();
+// CREATE A THREAD POOL INSTEAD OF CREATING AND KILLING THREADS. 
+// ACQUIRE, NOTIFY, CLEAN THREADS?
+
+void usage();
+
+size_t get_dynamic_input(char *result, int starting_size);
 
 int main(int argc, char *argv[]) {
 
@@ -19,7 +26,7 @@ int main(int argc, char *argv[]) {
     // char* port = "12000";
 
     if (argc > 3 || argc < 3) {
-        Usage();
+        usage();
         exit(EXIT_SUCCESS);
     }
 
@@ -28,7 +35,6 @@ int main(int argc, char *argv[]) {
 
     struct addrinfo hints, *addr_ptr;
     char recv_buffer[RECV_BUFFER_SIZE];
-    char send_buffer[SEND_BUFFER_SIZE];
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -47,18 +53,33 @@ int main(int argc, char *argv[]) {
 
     connect(socket_fd, addr_ptr->ai_addr, addr_ptr->ai_addrlen);
 
+    char input_buffer[INPUT_MAX_SIZE];
+    char *input_buffer_ptr = input_buffer;
+    size_t input_max_size = INPUT_MAX_SIZE; // need access to pointer for getline() call
+
     while (1) {
         int bytes_received = recv(socket_fd, recv_buffer, sizeof(recv_buffer), 0); // receive prompt from server
         printf("%s", recv_buffer); // print prompt
+
         if (strcmp(recv_buffer, CLOSING_CONNECTION) == 0) break; // if prompt is close message, kill connection
+
+        // here need to check if message from server is a file of some sort and loop until we receive everything
+
         memset(recv_buffer, 0, sizeof(recv_buffer)); // reset receiving buffer to 0s
 
-        fgets(send_buffer, SEND_BUFFER_SIZE, stdin); // get user input string
+        memset(input_buffer, 0, INPUT_MAX_SIZE); // reset input buffer to 0s before receiving input
+
+        size_t input_size = getline(&input_buffer_ptr, &input_max_size, stdin);
 
         // TODO: check if string input is 'ls client' and if so display files in client directory
+
+        if (strncmp(input_size, LIST_CLIENT_FILES, strlen(LIST_CLIENT_FILES))) {
+            get_files_in_directory_v();
+        }
+
         // TODO: check if string input is 'u <file>' and if so send file to server
 
-        send(socket_fd, send_buffer, SEND_BUFFER_SIZE, 0); // send user input string to server
+        send(socket_fd, input_buffer, --input_size, 0); // send user input string to server, pre decrement input_size to remove null terminator
     }
 
     close(socket_fd);
@@ -67,6 +88,20 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void Usage() {
+void usage() {
     printf("Usage: ./ftp_client <ip_addr> <port>\n");
+}
+
+void get_files_in_directory_v() {
+    struct dirent *de;
+    DIR *dir = open("./files");
+    if (dir == NULL) {
+        perror("[-] could not open directory for reading");
+        exit(EXIT_FAILURE);
+    }
+    int i = 1;
+    while ((de = readdir(dir)) != NULL) {
+        printf("%d. %s\n", i++, ent->d_name);
+    }
+    closedir(dir);
 }

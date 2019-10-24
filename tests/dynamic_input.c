@@ -1,37 +1,56 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define START_SIZE 3
 
+size_t get_dynamic_input(char *result, int starting_size);
+
 int main(void) {
 
+    size_t size;
     char *input = (char *)malloc(START_SIZE * sizeof(char));
-    size_t size = START_SIZE, index = 0;
 
-    printf("enter a string> ");
+    while (1) {
+        input = (char *)realloc(input, START_SIZE * sizeof(char));;
 
-    char next_char = 0;
+        memset(input, 0, START_SIZE);
+
+        printf("echo>");
+
+        size = get_dynamic_input(input, START_SIZE);
+
+        printf("size of input is: %lu, input is: %s\n", size, input);
+    }
+
+    free(input);
+
+    return 0;
+}
+
+// TODO: FIX THIS FUNCTION IT DOES SOME FUNKY STUFF
+size_t get_dynamic_input(char *result, int starting_size) {
+    size_t size = starting_size, index = 0;
+
+    char next_char;
     while (1) { // while char is not newline of EOF
         next_char = getc(stdin); // get next char
 
-        if (next_char == '\n') {
+        if (next_char == '\n' || next_char == EOF) {
             size++;
-            input = (char *)realloc(input, size * sizeof(char));
-            input[size] = EOF;
+            result = (char *)realloc(result, size * sizeof(char));
+            result[size] = '\0';
             break;
         }
 
         if (index == size) {
             size++;
-            input = (char *)realloc(input, size * sizeof(char));
+            result = (char *)realloc(result, size * sizeof(char));
         }
 
-        input[index] = next_char;
+        result[index] = next_char;
         index++;
     }
 
-    printf("size of input is: %lu, input is: %s\n", size, input);
-
-    free(input);
-    return 0;
+    return size;
 }
