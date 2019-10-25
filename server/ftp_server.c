@@ -9,18 +9,20 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define BACKLOG 5
 #define PROMPT "ftp> "
 #define EXIT_COMMAND  "bye"
 #define CLOSING_CONNECTION "Closing the connection\n"
-#define CLIENT_MAX_INPUT_SIZE 1000
+#define LIST_FILES "ls"
+#define UPLOAD_FILE "u"
+#define DOWNLOAD_FILE "d"
 
+#define BACKLOG 5
+#define CLIENT_MAX_INPUT_SIZE 1000
 #define MAX_CLIENT_THREADS 5
 
 void *client_handler(void *client_socket_fd);
 
-// TODO: implement the use of pthreads to support simultaneous connections 
-// TODO: what is up with the backlog value?
+// TODO: CREATE PTHREAD POOL
 
 int current_threads = 0;
 
@@ -108,6 +110,14 @@ void *client_handler(void *client_socket_fd) {
         printf("received bytes : %lu\n", bytes_received);
         // TODO: if user sends ls server then display files in server ftp directory
         // TODO: if user sends d <file> then send specified file
+
+        if (strncmp(input_buffer, UPLOAD_FILE, sizeof(UPLOAD_FILE)) == 0) {
+            printf("User wants to upload a file!!!\n");
+            memset(input_buffer, 0, bytes_received);
+            bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0);
+            size_t filesize = atoi(input_buffer);
+            printf("Incoming filesize: %lu", filesize);
+        }
     }
 
     send(client_fd, CLOSING_CONNECTION, strlen(CLOSING_CONNECTION) + 1, 0);

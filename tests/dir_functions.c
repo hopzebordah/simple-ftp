@@ -4,7 +4,7 @@
 #include <string.h>
 
 void print_files_directory();
-void get_filename_by_number(int, char *);
+FILE * open_file_by_number(int);
 
 int main(void) {
 
@@ -23,11 +23,7 @@ int main(void) {
 
     int selected_file_number = atoi(input_buffer);
 
-    char selected_file_name[input_max_size];
-    memset(selected_file_name, 0, input_max_size); // reset input buffer to 0s before receiving input
-    get_filename_by_number(selected_file_number, selected_file_name);
-
-    printf("selected filename: %s\n", selected_file_name);
+    FILE *file = open_file_by_number(selected_file_number);
     
     return 0;
 }
@@ -52,7 +48,7 @@ void print_files_directory() {
 }
 
 // TODO: account for file_number being too big n shit
-void get_filename_by_number(int file_number, char *str) {
+FILE * open_file_by_number(int file_number) {
 
     DIR *directory = opendir("files");
     struct dirent *file;
@@ -66,12 +62,14 @@ void get_filename_by_number(int file_number, char *str) {
     while (file = readdir(directory)) {
         if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
             if (i == file_number) {
-                strcpy(str, file->d_name);
-                break;
+                FILE *f = fopen(file->d_name, "r");
+                closedir(directory);
+                return f;
             }
             i++;
         }
     }
 
     closedir(directory);
+    return NULL;
 }

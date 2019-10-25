@@ -6,6 +6,7 @@ all:
 	gcc tests/dynamic_input.c -o tests/dynamic_input 
 	gcc tests/getline_input.c -o tests/getline_input 
 	gcc tests/pthread_multithreading.c -o tests/pthread_test -lpthread
+	gcc tests/dir_functions.c -o tests/dir_functions
 
 clean:
 	/bin/rm -f *.o *~ *.dat core server/ftp_server client/ftp_client
