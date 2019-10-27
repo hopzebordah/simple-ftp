@@ -155,9 +155,8 @@ void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer
         get_filename_by_number(filename, i);
         sprintf(filename, "%s", filename);
         send_string(client_fd, send_buffer, filename);
+        recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
     }
-
-    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
 
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
 }

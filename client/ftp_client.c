@@ -117,15 +117,15 @@ void receive_directory_contents(int socket_fd) {
     size_t num_files = recv_size_value(socket_fd, recv_buffer);
     send_string_constant(socket_fd, send_buffer, ACK);
 
+    // TODO: recv ACK EVERY SINGLE TIME
     char filename[FILENAME_SIZE_MAX];
     for (int i=1; i<=num_files; i++) {
         clear_filename_array(filename);
         bytes_received = recv_string(socket_fd, recv_buffer, filename);
+        send_string_constant(socket_fd, send_buffer, ACK);
         printf("%d. ", i);
         printf("%s\n", filename);
     }
-
-    send_string_constant(socket_fd, send_buffer, ACK);
 }
 
 void upload_file(int socket_fd, int file_number) {
