@@ -1,6 +1,8 @@
 #ifndef CONVO_NETWORKING_H
 #define CONVO_NETWORKING_H
 
+#define DEBUG 0
+
 #define BUFFER_SIZE 1000
 
 #define ACK "ACK"
@@ -9,9 +11,13 @@
 
 void reset_buffer(char *buffer);
 
-size_t recv_data(int client_fd, char *recv_buffer);
+size_t recv_data(int fd, char *recv_buffer);
 
-size_t send_data(int client_fd, char *send_buffer, size_t send_buffer_size);
+size_t recv_string(int fd, char *recv_buffer, char *str);
+
+size_t recv_size_value(int fd, char *recv_buffer);
+
+size_t send_data(int fd, char *send_buffer, size_t send_buffer_size);
 
 size_t send_string(int fd, char *send_buffer, char *data);
 

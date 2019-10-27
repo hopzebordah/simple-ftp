@@ -27,7 +27,7 @@ void *client_handler(void *client_socket_fd);
 
 void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer);
 
-void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer, size_t buffer_size);
+void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer);
 
 void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer);
 
@@ -120,9 +120,12 @@ void *client_handler(void *client_socket_fd) {
         // TODO: if user sends d <file> then send specified file
         // TODO: if user sends u then handle it
 
-        if (strings_match(recv_buffer, UPLOAD_FILE)) {
+        if (strings_match(recv_buffer, LIST_FILES)) {
+            send_string_constant(client_fd, send_buffer, ACK);
+            send_directory_contents(client_fd, send_buffer, recv_buffer);
+        } else if (strings_match(recv_buffer, UPLOAD_FILE)) {
             send_string_constant(client_fd, send_buffer, ACK); // send ack
-            recv_file_from_user(client_fd, send_buffer, recv_buffer, BUFFER_SIZE); // receive the file
+            recv_file_from_user(client_fd, send_buffer, recv_buffer); // receive the file
         }
     }
 
@@ -135,27 +138,56 @@ void *client_handler(void *client_socket_fd) {
     pthread_exit(NULL);
 }
 
-// MARK main action functions
-void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer, size_t buffer_size) {
+void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer) {
+    size_t bytes_sent; 
 
-    size_t bytes_received, incoming_filesize;
-    bytes_received = recv_data(client_fd, recv_buffer); // wait for filesize to be sent
-    sscanf(recv_buffer, "%zu", &incoming_filesize);
-    send_string_constant(client_fd, send_buffer, ACK); // send ack as receipt
+    size_t directory_length = get_number_of_files_in_directory();
+
+    // send number of files to expect
+    bytes_sent = send_size_value(client_fd, send_buffer, directory_length);
+    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
 
     char filename[260];
-    memset(filename, 0, sizeof(filename));
-    bytes_received = recv_data(client_fd, recv_buffer);
-    sprintf(filename, "%s", recv_buffer);
+
+    // send each filename in a loop
+    for (int i=1; i<=directory_length; i++) {
+        get_filename_by_number(filename, i);
+        sprintf(filename, "%s", filename);
+        send_string(client_fd, send_buffer, filename);
+    }
+
+    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
+
+    recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
+}
+
+// MARK main action functions
+void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer) {
+    
+    size_t incoming_filesize = recv_size_value(client_fd, recv_buffer);
+    send_string_constant(client_fd, send_buffer, ACK); // send ack as receipt
+
+    char filename[FILENAME_SIZE_MAX];
+    clear_filename_array(filename);
+    recv_string(client_fd, recv_buffer, filename);
     send_string_constant(client_fd, send_buffer, ACK);
 
-    size_t total_bytes_received = 0, bytes_written;
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL) {
+        perror("fopen for writing");
+        exit(EXIT_FAILURE);
+    }
+
+    size_t total_bytes_received = 0, bytes_written, bytes_received;
     while(total_bytes_received < incoming_filesize) {
         bytes_received = recv_data(client_fd, recv_buffer);
         total_bytes_received += bytes_received;
         printf("%s\n", recv_buffer);
         // write recv_buffer and amt bytes received to file with filename
+        fwrite(recv_buffer, 1, bytes_received, fp);
     }
+
+    fclose(fp);
 
     send_string_constant(client_fd, send_buffer, ACK);
 
