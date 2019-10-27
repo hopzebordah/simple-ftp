@@ -31,6 +31,8 @@ void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer);
 
 void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer);
 
+size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer);
+
 // TODO: CREATE PTHREAD POOL
 
 int current_threads = 0;
@@ -111,14 +113,10 @@ void *client_handler(void *client_socket_fd) {
     size_t bytes_received = 0;
     char recv_buffer[BUFFER_SIZE];
 
-    while (!strings_match(recv_buffer, EXIT_COMMAND)) { // while the first three chars sent by client are not bye
+    while (!strings_match(recv_buffer, EXIT_COMMAND)) { // while recv buffer is not goodbye command
 
         send_string_constant(client_fd, send_buffer, PROMPT); // send the prompt
         bytes_received = recv_data(client_fd, recv_buffer); // receive data from client
-
-        // TODO: if user sends ls server then display files in server ftp directory
-        // TODO: if user sends d <file> then send specified file
-        // TODO: if user sends u then handle it
 
         if (strings_match(recv_buffer, LIST_FILES)) {
             send_string_constant(client_fd, send_buffer, ACK);
@@ -126,6 +124,9 @@ void *client_handler(void *client_socket_fd) {
         } else if (strings_match(recv_buffer, UPLOAD_FILE)) {
             send_string_constant(client_fd, send_buffer, ACK); // send ack
             recv_file_from_user(client_fd, send_buffer, recv_buffer); // receive the file
+        } else if (strings_match(recv_buffer, DOWNLOAD_FILE)) {
+            send_string_constant(client_fd, send_buffer, ACK);
+            send_file_to_user(client_fd, send_buffer, recv_buffer);
         }
     }
 
@@ -192,4 +193,38 @@ void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer) {
     send_string_constant(client_fd, send_buffer, ACK);
 
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
+}
+
+void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer) {
+
+    int requested_file_number = recv_int(client_fd, recv_buffer);
+    send_string_constant(client_fd, send_buffer, ACK);
+
+    char filename[FILENAME_SIZE_MAX];
+
+    // TODO: handle invalid file numbers by returning NULL
+
+    FILE *fp = open_file_by_number(filename, "r", requested_file_number);
+    size_t filesize = get_filesize(fp);
+
+    send_size_value(client_fd, send_buffer, filesize);
+    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
+
+    send_string(client_fd, send_buffer, filename);
+    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
+
+    size_t total_bytes_sent = read_and_send_file_to_socket(fp, filesize, client_fd, send_buffer);
+    recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
+
+    recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
+}
+
+size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
+    size_t total_bytes_sent = 0, bytes_read, bytes_sent;
+    while (total_bytes_sent < filesize) {
+        bytes_read = fread(send_buffer, 1, 1000, fp);
+        bytes_sent = send_data(socket_fd, send_buffer, bytes_read);
+        total_bytes_sent += bytes_sent;
+    }
+    return total_bytes_sent;
 }

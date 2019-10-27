@@ -74,8 +74,8 @@ size_t get_filename_by_number(char *str, int file_number) {
     return 0;
 }
 
-FILE * open_file(char *filename) {
-    FILE *fp = fopen(filename, "r");
+FILE * open_file(char *filename, char *mode) {
+    FILE *fp = fopen(filename, mode);
     if (fp == NULL) {
         perror("open file by number");
         exit(EXIT_FAILURE);
@@ -83,14 +83,13 @@ FILE * open_file(char *filename) {
     return fp;
 }
 
-FILE * open_file_by_number(char *filename, int number) {
+FILE * open_file_by_number(char *filename, char *mode, int number) {
     clear_filename_array(filename);
-    char temp_filename[FILENAME_SIZE_MAX + 10];
+    char temp_filename[FILENAME_SIZE_MAX];
     clear_filename_array(temp_filename);
     size_t filename_size = get_filename_by_number(temp_filename, number);
     sprintf(filename, "%s%s", FILES_DIRECTORY, temp_filename);
-    printf("%s\n", filename);
-    FILE *fp = open_file(filename);
+    FILE *fp = open_file(filename, mode);
     return fp;
 }
 

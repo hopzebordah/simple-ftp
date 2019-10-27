@@ -12,9 +12,9 @@ size_t get_number_of_files_in_directory();
 
 size_t get_filename_by_number(char *str, int file_number);
 
-FILE * open_file(char *filename);
+FILE * open_file(char *filename, char *mode);
 
-FILE * open_file_by_number(char *filename, int number);
+FILE * open_file_by_number(char *filename, char *mode, int number);
 
 size_t get_filesize(FILE *fp);
 

@@ -40,7 +40,7 @@ char send_buffer[BUFFER_SIZE];
 char *send_buffer_ptr = send_buffer;
 size_t send_max_size = BUFFER_SIZE; // need access to pointer for getline() call
 
-char filename[FILENAME_SIZE_MAX + 10];
+char filename[FILENAME_SIZE_MAX];
 
 int main(int argc, char *argv[]) {
 
@@ -130,7 +130,7 @@ void receive_directory_contents(int socket_fd) {
 
 void upload_file(int socket_fd, int file_number) {
 
-    FILE *fp = open_file_by_number(filename, file_number);
+    FILE *fp = open_file_by_number(filename, "r", file_number);
 
     size_t filesize = get_filesize(fp);
 
@@ -156,10 +156,42 @@ void upload_file(int socket_fd, int file_number) {
 }
 
 void download_file(int socket_fd, int file_number) {
-    printf("YOU WANT TO DOWNLOAD A FILE!!!\n");
-    // TODO: tell server which file we want, send number
-    // TODO: recv() filesize
-    // TODO: loop recv() until received bytes == filesize
+    // TODO: send d to server
+    // TODO: await ack
+    // TODO: send filenum to server
+    // TODO: await ack
+    // TODO: recv string filename
+    // TODO: send ack
+    // TODO: open file for writing
+    // TODO: recv() until entire file has been transferred
+    // TODO: send ack
+
+    send_string_constant(socket_fd, send_buffer, DOWNLOAD_FILE);
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
+    send_int(socket_fd, send_buffer, file_number);
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
+    size_t requested_filesize = recv_size_value(socket_fd, recv_buffer);
+    send_string_constant(socket_fd, send_buffer, ACK);
+
+    clear_filename_array(filename);
+    recv_string(socket_fd, recv_buffer, filename);
+    send_string_constant(socket_fd, send_buffer, ACK);
+
+    FILE *fp = open_file(filename, "w");
+
+    size_t total_bytes_received = 0, bytes_written, bytes_received;
+    while(total_bytes_received < requested_filesize) {
+        bytes_received = recv_data(socket_fd, recv_buffer);
+        total_bytes_received += bytes_received;
+        printf("%s\n", recv_buffer);
+        fwrite(recv_buffer, 1, bytes_received, fp);
+    }
+
+    fclose(fp);
+
+    send_string_constant(socket_fd, send_buffer, ACK);
 }
 
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
