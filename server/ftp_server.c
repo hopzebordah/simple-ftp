@@ -10,17 +10,32 @@
 #include <pthread.h>
 
 #define PROMPT "ftp> "
-#define EXIT_COMMAND  "bye"
+#define EXIT_COMMAND "bye"
 #define CLOSING_CONNECTION "Closing the connection\n"
 #define LIST_FILES "ls"
 #define UPLOAD_FILE "u"
 #define DOWNLOAD_FILE "d"
+#define SERVER_ACK "ACK"
+#define CLIENT_DONE "DONE"
 
 #define BACKLOG 5
-#define CLIENT_MAX_INPUT_SIZE 1000
+#define RECV_MAX_SIZE 1000
 #define MAX_CLIENT_THREADS 5
 
+#define SEND_MAX_SIZE 1000
+
 void *client_handler(void *client_socket_fd);
+
+void reset_send_buffer(char *send_buffer);
+void reset_recv_buffer(char *recv_buffer);
+
+void recv_string_constant(int fd, char *send_buffer, char *recv_buffer, char *str_constant);
+size_t recv_data(int client_fd, char *recv_buffer);
+
+void send_string_constant(int client_fd, char *send_buffer, char *str_constant);
+size_t send_data(int client_fd, char *send_buffer, size_t send_buffer_size);
+
+void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer, size_t buffer_size);
 
 // TODO: CREATE PTHREAD POOL
 
@@ -80,7 +95,6 @@ int main(int argc, char *argv[]) {
             pthread_create(&thread_id, NULL, client_handler, (void *)((long)client_fd));
         } else {
             printf("[-] server is at capacity, refusing connection...\n");
-            send(client_fd, CLOSING_CONNECTION, strlen(CLOSING_CONNECTION) + 1, 0);
             shutdown(client_fd, SHUT_RDWR);
             close(client_fd);
         }
@@ -88,7 +102,6 @@ int main(int argc, char *argv[]) {
 
     close(socket_fd);
     freeaddrinfo(addr_ptr);
-    //if (fork()) exit(0);
 
     return 0;
 }
@@ -98,32 +111,111 @@ void *client_handler(void *client_socket_fd) {
 
     int client_fd = (int)client_socket_fd;
 
-    size_t bytes_received = 0;
-    char input_buffer[CLIENT_MAX_INPUT_SIZE];
-    memset(input_buffer, 0, sizeof(input_buffer));
+    size_t bytes_sent = 0;
+    char send_buffer[SEND_MAX_SIZE];
 
-    while (strncmp(input_buffer, EXIT_COMMAND, 3) != 0) { // while the first three chars sent by client are not bye
-        send(client_fd, PROMPT, strlen(PROMPT) + 1, 0); // send the prompt
-        memset(input_buffer, 0, bytes_received); // reset the input buffer that stores data sent by client
-        bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0); // receive data from client
-        printf("received data : %s\n", input_buffer);
-        printf("received bytes : %lu\n", bytes_received);
+    size_t bytes_received = 0;
+    char recv_buffer[RECV_MAX_SIZE];
+
+    while (strncmp(recv_buffer, EXIT_COMMAND, 3) != 0) { // while the first three chars sent by client are not bye
+
+        send_string_constant(client_fd, send_buffer, PROMPT); // send the prompt
+        bytes_received = recv_data(client_fd, recv_buffer); // receive data from client
+
         // TODO: if user sends ls server then display files in server ftp directory
         // TODO: if user sends d <file> then send specified file
+        // TODO: if user sends u then handle it
 
-        if (strncmp(input_buffer, UPLOAD_FILE, sizeof(UPLOAD_FILE)) == 0) {
-            printf("User wants to upload a file!!!\n");
-            memset(input_buffer, 0, bytes_received);
-            bytes_received = recv(client_fd, input_buffer, sizeof(input_buffer), 0);
-            size_t filesize = atoi(input_buffer);
-            printf("Incoming filesize: %lu", filesize);
+        if (strncmp(recv_buffer, UPLOAD_FILE, sizeof(UPLOAD_FILE)) == 0) {
+            send_string_constant(client_fd, send_buffer, SERVER_ACK); // send ack
+            recv_file_from_user(client_fd, send_buffer, recv_buffer, RECV_MAX_SIZE); // receive the file
         }
     }
 
-    send(client_fd, CLOSING_CONNECTION, strlen(CLOSING_CONNECTION) + 1, 0);
+    printf("[+] Saying goodbye...\n");
+
     shutdown(client_fd, SHUT_RDWR);
     close(client_fd);
 
     current_threads--;
     pthread_exit(NULL);
+}
+
+// MARK utility functions
+void reset_send_buffer(char *send_buffer) {
+    memset(send_buffer, 0, SEND_MAX_SIZE);
+}
+
+void reset_recv_buffer(char *recv_buffer) {
+    memset(recv_buffer, 0, RECV_MAX_SIZE);
+}
+
+// MARK: methods for recv()ing data
+void recv_string_constant(int fd, char *send_buffer, char *recv_buffer, char *str_constant) {
+    printf("WAITING FOR %s...\n", str_constant);
+    reset_recv_buffer(recv_buffer);
+    size_t bytes_received = recv_data(fd, recv_buffer);
+    if (strncmp(recv_buffer, str_constant, strlen(str_constant)) == 0) {
+        printf("RECEIVED %s!!!\n", str_constant);
+        reset_recv_buffer(recv_buffer);
+    } else {
+        printf("[!] ERROR: expected %s and received %s...\nTerminating...\n", str_constant, recv_buffer);
+        send_string_constant(fd, send_buffer, CLOSING_CONNECTION);
+        exit(EXIT_FAILURE);
+    }
+}
+
+size_t recv_data(int client_fd, char *recv_buffer) {
+    reset_recv_buffer(recv_buffer);
+    size_t bytes_received = recv(client_fd, recv_buffer, RECV_MAX_SIZE, 0);
+
+    printf("received data : %s\n", recv_buffer);
+    printf("received bytes : %lu\n", bytes_received);
+
+    return bytes_received;
+}
+
+// MARK: methods for send()ing data
+void send_string_constant(int client_fd, char *send_buffer, char *str_constant) {
+    //printf("SENDING STRING %s...\n", str_constant);
+    reset_send_buffer(send_buffer);
+    size_t bytes_stored = sprintf(send_buffer, "%s", str_constant);
+    size_t bytes_sent = send_data(client_fd, send_buffer, bytes_stored);
+}
+
+size_t send_data(int client_fd, char *send_buffer, size_t send_buffer_size) {
+    size_t bytes_sent = send(client_fd, send_buffer, send_buffer_size, 0);
+    reset_send_buffer(send_buffer);
+    return bytes_sent;
+}
+
+// MARK main action functions
+void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer, size_t buffer_size) {
+
+    size_t bytes_received, incoming_filesize;
+    bytes_received = recv_data(client_fd, recv_buffer); // wait for filesize to be sent
+    sscanf(recv_buffer, "%zu", &incoming_filesize);
+    send_string_constant(client_fd, send_buffer, SERVER_ACK); // send ack as receipt
+
+    char filename[260];
+    memset(filename, 0, sizeof(filename));
+    bytes_received = recv_data(client_fd, recv_buffer);
+    sprintf(filename, "%s", recv_buffer);
+    send_string_constant(client_fd, send_buffer, SERVER_ACK);
+
+    size_t total_bytes_received = 0, bytes_written;
+    while(total_bytes_received < incoming_filesize) {
+        bytes_received = recv_data(client_fd, recv_buffer);
+        total_bytes_received += bytes_received;
+        printf("%s\n", recv_buffer);
+        // write recv_buffer and amt bytes received to file with filename
+    }
+
+    send_string_constant(client_fd, send_buffer, SERVER_ACK);
+
+    recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
+}
+
+size_t write_byte_array_to_file(char *filename, char *data, size_t data_size) {
+    return 0;
 }
