@@ -8,34 +8,31 @@
 #include <netdb.h>
 #include <dirent.h>
 
-#define RECV_MAX_SIZE 1000
-#define SEND_MAX_SIZE 1000
+#include "convo_networking.h"
+#include "file_functions.h"
+#include "util.h"
+
+#define PROMPT "ftp> "
 #define BYE "bye"
-#define CLOSING_CONNECTION "Closing the connection\n"
 #define LIST_CLIENT_FILES "ls client"
 #define LIST_SERVER_FILES "ls server"
 #define UPLOAD_FILE "u"
 #define DOWNLOAD_FILE "d"
+#define CLIENT_DONE "DONE"
 
 // CREATE A THREAD POOL INSTEAD OF CREATING AND KILLING THREADS. 
 // ACQUIRE, NOTIFY, CLEAN THREADS?
 
 void usage();
 
-void reset_send_buffer();
-void reset_recv_buffer();
-
-size_t get_dynamic_input(char *result, int starting_size);
-void print_files_directory();
-FILE * open_file_by_number(int file_number);
-size_t get_filesize(FILE *fp);
+// action function
 void upload_file(int socket_fd, int file_number);
 
-char recv_buffer[RECV_MAX_SIZE];
+char recv_buffer[BUFFER_SIZE];
 
-char send_buffer[SEND_MAX_SIZE];
+char send_buffer[BUFFER_SIZE];
 char *send_buffer_ptr = send_buffer;
-size_t send_max_size = SEND_MAX_SIZE; // need access to pointer for getline() call
+size_t send_max_size = BUFFER_SIZE; // need access to pointer for getline() call
 
 int main(int argc, char *argv[]) {
 
@@ -67,42 +64,36 @@ int main(int argc, char *argv[]) {
     connect(socket_fd, addr_ptr->ai_addr, addr_ptr->ai_addrlen);
 
     while (1) {
-        reset_recv_buffer();
-        int bytes_received = recv(socket_fd, recv_buffer, sizeof(recv_buffer), 0); // receive prompt from server
-        printf("%s", recv_buffer); // print first message of each interaction, whether prompt or goodbye
-        if (strcmp(recv_buffer, CLOSING_CONNECTION) == 0) break; // if prompt is close message, kill connection
+        recv_string_constant(socket_fd, send_buffer, recv_buffer, PROMPT); // assert server is sending prompt
+        printf("%s", PROMPT); // print dat
 
-        // here need to check if message from server is a file of some sort and loop until we receive everything
-
-        reset_send_buffer();
+        reset_buffer(send_buffer);
         size_t input_size = getline(&send_buffer_ptr, &send_max_size, stdin);
         input_size--; // strip newline, no null terminator
 
-        if (strncmp(send_buffer, LIST_CLIENT_FILES, strlen(LIST_CLIENT_FILES)) == 0) {
-            printf("YOU WANT TO LIST FILES ON CLIENT!!!\n");
+        if (strings_match(send_buffer, LIST_CLIENT_FILES)) {
             print_files_directory();
-        } else if (strncmp(send_buffer, LIST_SERVER_FILES, strlen(LIST_SERVER_FILES)) == 0) {
+        } else if (strings_match(send_buffer, LIST_SERVER_FILES)) {
             printf("YOU WANT TO LIST FILES ON SERVER!!!\n");
             // TODO: ask server for list of files, send() ls
             // TODO: recv() size of files string
             // TODO: loop recv() until entire string is recieved
-        } else if (strncmp(send_buffer, UPLOAD_FILE, strlen(UPLOAD_FILE)) == 0) {
-            printf("YOU WANT TO UPLOAD A FILE!!!\n");
+        } else if (strings_match(send_buffer, UPLOAD_FILE)) {
             int file_number = atoi(send_buffer + 2);
             upload_file(socket_fd, file_number);
-        } else if (strncmp(send_buffer, DOWNLOAD_FILE, strlen(DOWNLOAD_FILE)) == 0) {
+        } else if (strings_match(send_buffer, DOWNLOAD_FILE)) {
             printf("YOU WANT TO DOWNLOAD A FILE!!!\n");
-            // TODO: send d to tell server we wanna download stuff
             int file_number = atoi(send_buffer + 2); // file number starts at the second index
             // TODO: tell server which file we want, send number
             // TODO: recv() filesize
             // TODO: loop recv() until received bytes == filesize
-        } else if (strncmp(send_buffer, BYE, strlen(BYE)) == 0) {
+        } else if (strings_match(send_buffer, BYE)) {
             printf("GOODBYE COMMAND\n");
-            //send(socket_fd, send_buffer, input_size, 0);
+            send_string_constant(socket_fd, send_buffer, BYE);
+            break;
         }
 
-        send(socket_fd, send_buffer, input_size, 0); // send user input string to server, pre decrement input_size to remove null terminator
+        send_string_constant(socket_fd, send_buffer, CLIENT_DONE);
     }
 
     close(socket_fd);
@@ -115,76 +106,39 @@ void usage() {
     printf("Usage: ./ftp_client <ip_addr> <port>\n");
 }
 
-void reset_send_buffer() {
-    memset(send_buffer, 0, SEND_MAX_SIZE);
-}
-
-void reset_recv_buffer() {
-    memset(recv_buffer, 0, RECV_MAX_SIZE);
-}
-
-void print_files_directory() {
-    DIR *directory = opendir("files");
-    struct dirent *file;
-
-    if (directory == NULL) {
-        perror("error on opendir");
-        exit(EXIT_FAILURE);
-    }
-
-    int i = 1;
-    while (file = readdir(directory)) {
-        if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
-            printf("%d. %s\n", i++, file->d_name);
-        }
-    }
-
-    closedir(directory);
-}
-
-FILE * open_file_by_number(int file_number) {
-
-    DIR *directory = opendir("files");
-    struct dirent *file;
-
-    if (directory == NULL) {
-        perror("error on opendir");
-        exit(EXIT_FAILURE);
-    }
-
-    int i = 1;
-    while (file = readdir(directory)) {
-        if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
-            if (i == file_number) {
-                FILE *f = fopen(file->d_name, "r");
-                closedir(directory);
-                return f;
-            }
-            i++;
-        }
-    }
-
-    closedir(directory);
-    return NULL;
-}
-
-size_t get_filesize(FILE *fp) {
-    fseek(fp, 0, SEEK_END); // seek to end of file
-    size_t size = ftell(fp); // get current file pointer
-    fseek(fp, 0, SEEK_SET);
-    return size;
-}
-
 void upload_file(int socket_fd, int file_number) {
-    FILE *fp = open_file_by_number(file_number);
+
+    char filename[260];
+    memset(filename, 0, sizeof(filename));
+    size_t filename_size = get_filename_by_number(filename, file_number);
+    FILE *fp = open_file(filename);
+
     size_t filesize = get_filesize(fp);
-    // TODO: send u to tell server we wanna upload something
-    send(socket_fd, "u", 1, 0);
-    // TODO: tell server incoming filesize
-    // TODO: convert int to string with correct call to itoa
-    reset_send_buffer();
-    size_t bytes_stored = sprintf(send_buffer, "%zu", filesize);
-    send(socket_fd, send_buffer, bytes_stored, 0);
+
+    size_t bytes_sent, bytes_received;
+
+    // send u to tell server we wanna upload something
+    bytes_sent = send_string(socket_fd, send_buffer, "u");
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
+    // tell server incoming filesize
+    bytes_sent = send_size_value(socket_fd, send_buffer, filesize);
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
+    // tell server incoming filename
+    bytes_sent = send_string(socket_fd, send_buffer, filename);
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
+    // TODO: write a method that does this
     // TODO: send() bytes until filesize == bytes_sent
+    size_t total_bytes_sent = 0, bytes_read;
+    while (total_bytes_sent < filesize) {
+        bytes_read = fread(send_buffer, 1, 1000, fp);
+        bytes_sent = send_data(socket_fd, send_buffer, bytes_read);
+        total_bytes_sent += bytes_sent;
+    }
+
+    recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
+
     fclose(fp);
 }

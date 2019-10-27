@@ -1,32 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <dirent.h>
 #include <string.h>
+#include <dirent.h>
 
-void print_files_directory();
-FILE * open_file_by_number(int);
-
-int main(void) {
-
-    print_files_directory();
-    
-    size_t input_max_size = 250; // need access to pointer for getline() call
-
-    char input_buffer[input_max_size];
-    char *input_buffer_ptr = input_buffer;
-
-    printf("enter a number>");
-
-    memset(input_buffer, 0, input_max_size); // reset input buffer to 0s before receiving input
-    size_t input_size = getline(&input_buffer_ptr, &input_max_size, stdin);
-    input_size--; // strip newline, no null terminator
-
-    int selected_file_number = atoi(input_buffer);
-
-    FILE *file = open_file_by_number(selected_file_number);
-    
-    return 0;
-}
+#include "file_functions.h"
 
 void print_files_directory() {
     DIR *directory = opendir("files");
@@ -47,9 +24,7 @@ void print_files_directory() {
     closedir(directory);
 }
 
-// TODO: account for file_number being too big n shit
-FILE * open_file_by_number(int file_number) {
-
+size_t get_filename_by_number(char *str, int file_number) {
     DIR *directory = opendir("files");
     struct dirent *file;
 
@@ -62,14 +37,34 @@ FILE * open_file_by_number(int file_number) {
     while ((file = readdir(directory))) {
         if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
             if (i == file_number) {
-                FILE *f = fopen(file->d_name, "r");
+                size_t chars_written = sprintf(str, "%s%s", "files/", file->d_name);
                 closedir(directory);
-                return f;
+                return chars_written;
             }
             i++;
         }
     }
 
     closedir(directory);
-    return NULL;
+    return 0;
+}
+
+FILE * open_file(char *filename) {
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        perror("open file by number");
+        exit(EXIT_FAILURE);
+    }
+    return fp;
+}
+
+size_t get_filesize(FILE *fp) {
+    fseek(fp, 0, SEEK_END); // seek to end of file
+    size_t size = ftell(fp); // get current file pointer
+    fseek(fp, 0, SEEK_SET);
+    return size;
+}
+
+size_t write_byte_array_to_file(char *filename, char *data, size_t data_size) {
+    return 0;
 }

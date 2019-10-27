@@ -1,12 +1,13 @@
 .SUFFIXES: .c
 
 all:
-	gcc client/ftp_client.c -o client/ftp_client 
-	gcc server/ftp_server.c -o server/ftp_server -lpthread
-	gcc tests/dynamic_input.c -o tests/dynamic_input 
-	gcc tests/getline_input.c -o tests/getline_input 
-	gcc tests/pthread_multithreading.c -o tests/pthread_test -lpthread
-	gcc tests/dir_functions.c -o tests/dir_functions
+	gcc -c lib/convo_networking.c -o o_files/convo_networking.o
+	gcc -c lib/file_functions.c -o o_files/file_functions.o
+	gcc -c lib/util.c -o o_files/util.o 
+	gcc -Ilib -c client/ftp_client.c -o o_files/ftp_client.o
+	gcc -Ilib -c server/ftp_server.c -o o_files/ftp_server.o
+	gcc o_files/convo_networking.o o_files/file_functions.o o_files/util.o o_files/ftp_client.o -o client/ftp_client
+	gcc o_files/convo_networking.o o_files/file_functions.o o_files/util.o o_files/ftp_server.o -o server/ftp_server -lpthread
 
 clean:
-	/bin/rm -f *.o *~ *.dat core server/ftp_server client/ftp_client
+	/bin/rm -f *.o *~ *.dat core server/ftp_server client/ftp_client o_files/*
