@@ -1,2 +1,0 @@
-this file is included so that git recognizes this directory. 
-if this directory does not exist, then the make command fails. 

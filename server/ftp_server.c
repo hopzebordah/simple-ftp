@@ -113,6 +113,25 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+//********************************************************************
+//
+// Pthread Client Handler Function
+//
+// This function defines the server behavior for each client thread that is created.  
+// 
+// Value parameters
+// ---------------
+// client_socket_fd     void *      void pointer for data passed to thread
+// 
+// Local variables
+// ---------------
+// client_fd            int         file descriptor, casted from thread argument
+// bytes_sent           size_t      bytes sent
+// send_buffer          char *      send buffer
+// bytes_received       size_t      bytes received
+// recv_buffer          char *      receive buffer
+//
+//********************************************************************
 void *client_handler(void *client_socket_fd) {
     current_threads++;
 
@@ -150,6 +169,26 @@ void *client_handler(void *client_socket_fd) {
     pthread_exit(NULL);
 }
 
+//********************************************************************
+//
+// Send Directory Contents
+//
+// This function handshakes with the client, 
+// sends data related to the local server files/ directory, and then sends that data. 
+// 
+// Value parameters
+// ---------------
+// client_fd        int         client file descriptor 
+// send_buffer      char *      send buffer 
+// recv_buffer      char *      receive buffer
+// 
+// Local variables
+// ---------------
+// bytes_sent           size_t      bytes sent
+// directorty_length    size_t      number of files in directory
+// filename             char *      filename array
+//
+//********************************************************************
 void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer) {
     size_t bytes_sent; 
 
@@ -172,7 +211,26 @@ void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
 }
 
-// MARK main action functions
+//********************************************************************
+//
+// Receive File From User and Write to File From Socket Function
+//
+// This function handshakes with the client and receives file data from the client socket and
+// writes it to the matching file in increments.  
+// 
+// Value parameters
+// ---------------
+// client_fd        int         client socket 
+// send_buffer      char *      send buffer 
+// recv_buffer      char *      receive buffer
+// 
+// Local variables
+// ---------------
+// incoming_filesize        size_t      filesize of incoming file
+// filename                 char *      filename of incoming file
+// total_bytes_received     size_t      number of bytes received from server
+//
+//********************************************************************
 void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer) {
     
     size_t incoming_filesize = recv_size_value(client_fd, recv_buffer);
@@ -192,6 +250,28 @@ void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer) {
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
 }
 
+//********************************************************************
+//
+// Read and Send File to User Socket Function
+//
+// This function handshakes with the client and sends file data then 
+// sends it to the client. 
+// 
+// Value parameters
+// ---------------
+// client_fd        int         client socket 
+// send_buffer      char *      send buffer 
+// recv_buffer      char *      receive buffer
+// 
+// Local variables
+// ---------------
+// requested_file_number    int         requested file number
+// filename                 char *      filename of chosen file
+// fp                       FILE *      pointer to file to sent to client
+// filesize                 size_t      filesize of chosen file
+// total_bytes_sent         size_t      number of bytes sent to client
+//
+//********************************************************************
 void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer) {
 
     int requested_file_number = recv_int(client_fd, recv_buffer);
@@ -216,6 +296,31 @@ void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer) {
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
 }
 
+//********************************************************************
+//
+// Read File and Send to Socket Function
+//
+// This function reads a file and sends it to the indicated socket
+// in increments.  
+// 
+// Return values
+// ---------------
+// Total number of bytes sent
+// 
+// Value parameters
+// ---------------
+// fp               FILE *      pointer to file to read from 
+// filesize         size_t      filesize of file to read from 
+// socket_fd        int         socket file descriptor
+// send_buffer      char *      send buffer 
+// 
+// Local variables
+// ---------------
+// total_bytes_sent     size_t      total bytes sent to client
+// bytes_read           size_t      bytes read by fread function
+// bytes_sent           size_t      incremental value of bytes sent to client
+//
+//********************************************************************
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
     size_t total_bytes_sent = 0, bytes_read, bytes_sent;
     while (total_bytes_sent < filesize) {
@@ -226,6 +331,31 @@ size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, ch
     return total_bytes_sent;
 }
 
+//********************************************************************
+//
+// Receive File and Write to File From Socket Function
+//
+// This function receives file data from the indicated socket and
+// writes it to the indicated file in increments.  
+// 
+// Return values
+// ---------------
+// Total number of bytes received
+// 
+// Value parameters
+// ---------------
+// fp               FILE *      pointer to file to read from 
+// filesize         size_t      filesize of file to read from 
+// socket_fd        int         socket file descriptor
+// recv_buffer      char *      receive buffer 
+// 
+// Local variables
+// ---------------
+// total_bytes_received     size_t      total bytes received from client
+// bytes_written            size_t      bytes written by fwrite function
+// bytes_received           size_t      incremental value of bytes received from client
+//
+//********************************************************************
 size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer) {
     size_t total_bytes_received = 0, bytes_written, bytes_received;
     while(total_bytes_received < filesize) {

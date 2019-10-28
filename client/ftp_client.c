@@ -124,10 +124,36 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+//********************************************************************
+//
+// Usage Function
+//
+// This function prints a usage string.
+//
+//********************************************************************
 void usage() {
     printf("Usage: ./ftp_client <ip_addr> <port>\n");
 }
 
+//********************************************************************
+//
+// Receive Directory Contents Function
+//
+// This function handshakes with the server and receives 
+// data related to the server's files/ directory, and calls a
+// function that receives those strings and prints them. 
+// 
+// Value parameters
+// ---------------
+// socket_fd        int         socket file descriptor
+// 
+// Local variables
+// ---------------
+// bytes_sent       size_t      bytes sent
+// bytes_received   size_t      bytes received
+// num_files        size_t      number of files
+//
+//********************************************************************
 void receive_directory_contents(int socket_fd) {
     size_t bytes_sent, bytes_received;
 
@@ -140,6 +166,26 @@ void receive_directory_contents(int socket_fd) {
     recv_and_print_directory_strings(socket_fd, num_files, send_buffer, recv_buffer);
 }
 
+//********************************************************************
+//
+// Upload File Function
+//
+// This function handshakes with the server and sends data
+// related to a local file that is to be uploaded, then uploads that data.  
+// 
+// Value parameters
+// ---------------
+// socket_fd        int         socket file descriptor
+// file_number      int         file number to be opened
+// 
+// Local variables
+// ---------------
+// fp               FILE *      pointer to file to be sent
+// bytes_sent       size_t      bytes sent
+// bytes_received   size_t      bytes received
+// total_bytes_sent size_t      total bytes sent, should match filesize
+//
+//********************************************************************
 void upload_file(int socket_fd, int file_number) {
     FILE *fp = open_file_by_number(filename, "r", file_number);
 
@@ -164,6 +210,25 @@ void upload_file(int socket_fd, int file_number) {
     printf("%s File \"%s\" uploaded successfully. %zu bytes sent.\n\n", PROMPT, filename, total_bytes_sent);
 }
 
+//********************************************************************
+//
+// Download File Function
+//
+// This function handshakes with the server and receives data
+// related to a remote file that is to be downloaded, then receives that data.  
+// 
+// Value parameters
+// ---------------
+// socket_fd        int         socket file descriptor
+// file_number      int         file number to be opened
+// 
+// Local variables
+// ---------------
+// requested_filesize   size_t      size of file to be downloaded
+// total_bytes_sent     size_t      total bytes sent, should match filesize
+// fp                   FILE *      pointer to file to be sent
+//
+//********************************************************************
 void download_file(int socket_fd, int file_number) {
     send_string_constant(socket_fd, send_buffer, DOWNLOAD_FILE);
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
@@ -187,6 +252,26 @@ void download_file(int socket_fd, int file_number) {
     printf("%s File \"%s\" downloaded successfully. %zu bytes received.\n\n", PROMPT, filename, total_bytes_received);
 }
 
+//********************************************************************
+//
+// Receive and Print Directory Strings Function
+//
+// This function receives a set number of strings from the server and
+// prints each string as it is received. 
+// 
+// Value parameters
+// ---------------
+// socket_fd        int         socket file descriptor
+// num_files        int         number of file strings to expect
+// send_buffer      char *      send buffer 
+// recv_buffer      char *      receive buffer 
+// 
+// Local variables
+// ---------------
+// filename             char *      filename string for received filenames
+// bytes_received       size_t      bytes received
+//
+//********************************************************************
 void recv_and_print_directory_strings(int socket_fd, int num_files, char *send_buffer, char *recv_buffer) {
     char filename[FILENAME_SIZE_MAX];
     size_t bytes_received;
@@ -199,6 +284,31 @@ void recv_and_print_directory_strings(int socket_fd, int num_files, char *send_b
     }
 }
 
+//********************************************************************
+//
+// Read File and Send to Socket Function
+//
+// This function reads a file and sends it to the indicated socket
+// in increments.  
+// 
+// Return values
+// ---------------
+// Total number of bytes sent
+// 
+// Value parameters
+// ---------------
+// fp               FILE *      pointer to file to read from 
+// filesize         size_t      filesize of file to read from 
+// socket_fd        int         socket file descriptor
+// send_buffer      char *      send buffer 
+// 
+// Local variables
+// ---------------
+// total_bytes_sent     size_t      total bytes sent to server
+// bytes_read           size_t      bytes read by fread function
+// bytes_sent           size_t      incremental value of bytes sent to server
+//
+//********************************************************************
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
     size_t total_bytes_sent = 0, bytes_read, bytes_sent;
     while (total_bytes_sent < filesize) {
@@ -209,6 +319,31 @@ size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, ch
     return total_bytes_sent;
 }
 
+//********************************************************************
+//
+// Receive File and Write to File From Socket Function
+//
+// This function receives file data from the indicated socket and
+// writes it to the indicated file in increments.  
+// 
+// Return values
+// ---------------
+// Total number of bytes received
+// 
+// Value parameters
+// ---------------
+// fp               FILE *      pointer to file to read from 
+// filesize         size_t      filesize of file to read from 
+// socket_fd        int         socket file descriptor
+// recv_buffer      char *      receive buffer 
+// 
+// Local variables
+// ---------------
+// total_bytes_received     size_t      total bytes received from server
+// bytes_written        size_t      bytes written by fwrite function
+// bytes_received       size_t      incremental value of bytes received from server
+//
+//********************************************************************
 size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer) {
     size_t total_bytes_received = 0, bytes_written, bytes_received;
     while(total_bytes_received < filesize) {

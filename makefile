@@ -10,4 +10,4 @@ all:
 	gcc o_files/convo_networking.o o_files/file_functions.o o_files/util.o o_files/ftp_server.o -o server/ftp_server -lpthread
 
 clean:
-	/bin/rm -f *.o *~ *.dat core server/ftp_server client/ftp_client o_files/*
+	/bin/rm -f *.o *~ *.dat core server/ftp_server client/ftp_client o_files/*.o
