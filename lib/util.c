@@ -1,3 +1,13 @@
+//********************************************************************
+//
+// Alexander Peters
+// Computer Networks
+// Programming Project #3: Simple FTP Server
+// October 27, 2019
+// Instructor: Dr. Ajay K. Katangur
+//
+//********************************************************************
+
 #include <stdio.h>
 #include <string.h>
 

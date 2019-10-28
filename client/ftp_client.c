@@ -1,3 +1,13 @@
+//********************************************************************
+//
+// Alexander Peters
+// Computer Networks
+// Programming Project #3: Simple FTP Server
+// October 27, 2019
+// Instructor: Dr. Ajay K. Katangur
+//
+//********************************************************************
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,8 +42,11 @@ void upload_file(int socket_fd, int file_number);
 void download_file(int socket_fd, int file_number);
 
 // library combination functions
+void recv_and_print_directory_strings(int socket_fd, int num_files, char *send_buffer, char *recv_buffer);
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer);
+size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer);
 
+// global variables
 char recv_buffer[BUFFER_SIZE];
 
 char send_buffer[BUFFER_SIZE];
@@ -69,7 +82,12 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    connect(socket_fd, addr_ptr->ai_addr, addr_ptr->ai_addrlen);
+    if (connect(socket_fd, addr_ptr->ai_addr, addr_ptr->ai_addrlen)) {
+        perror("[!] error: connect");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("[+] Connection successfully established with ftp server\n\n");
 
     while (1) {
         recv_string_constant(socket_fd, send_buffer, recv_buffer, PROMPT); // assert server is sending prompt
@@ -81,8 +99,10 @@ int main(int argc, char *argv[]) {
 
         if (strings_match(send_buffer, LIST_CLIENT_FILES)) {
             print_files_directory();
+            printf("If you wish to upload a file enter \"u\" follwed by the file number\n\n");
         } else if (strings_match(send_buffer, LIST_SERVER_FILES)) {
             receive_directory_contents(socket_fd);
+            printf("If you wish to download a file enter \"d\" followed by file number\n\n");
         } else if (strings_match(send_buffer, UPLOAD_FILE)) {
             int file_number = atoi(send_buffer + 2);
             upload_file(socket_fd, file_number);
@@ -90,7 +110,7 @@ int main(int argc, char *argv[]) {
             int file_number = atoi(send_buffer + 2); // file number starts at the second index
             download_file(socket_fd, file_number);
         } else if (strings_match(send_buffer, BYE)) {
-            printf("GOODBYE COMMAND\n");
+            printf("Closing connection...\n");
             send_string_constant(socket_fd, send_buffer, BYE);
             break;
         }
@@ -117,55 +137,34 @@ void receive_directory_contents(int socket_fd) {
     size_t num_files = recv_size_value(socket_fd, recv_buffer);
     send_string_constant(socket_fd, send_buffer, ACK);
 
-    // TODO: recv ACK EVERY SINGLE TIME
-    char filename[FILENAME_SIZE_MAX];
-    for (int i=1; i<=num_files; i++) {
-        clear_filename_array(filename);
-        bytes_received = recv_string(socket_fd, recv_buffer, filename);
-        send_string_constant(socket_fd, send_buffer, ACK);
-        printf("%d. ", i);
-        printf("%s\n", filename);
-    }
+    recv_and_print_directory_strings(socket_fd, num_files, send_buffer, recv_buffer);
 }
 
 void upload_file(int socket_fd, int file_number) {
-
     FILE *fp = open_file_by_number(filename, "r", file_number);
 
     size_t filesize = get_filesize(fp);
 
     size_t bytes_sent, bytes_received;
 
-    // send u to tell server we wanna upload something
     bytes_sent = send_string(socket_fd, send_buffer, "u");
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
 
-    // tell server incoming filesize
     bytes_sent = send_size_value(socket_fd, send_buffer, filesize);
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
 
-    // tell server incoming filename
     bytes_sent = send_string(socket_fd, send_buffer, filename);
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
 
-    // send() bytes until filesize == bytes_sent
     size_t total_bytes_sent = read_and_send_file_to_socket(fp, filesize, socket_fd, send_buffer);
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
 
     fclose(fp);
+
+    printf("%s File \"%s\" uploaded successfully. %zu bytes sent.\n\n", PROMPT, filename, total_bytes_sent);
 }
 
 void download_file(int socket_fd, int file_number) {
-    // TODO: send d to server
-    // TODO: await ack
-    // TODO: send filenum to server
-    // TODO: await ack
-    // TODO: recv string filename
-    // TODO: send ack
-    // TODO: open file for writing
-    // TODO: recv() until entire file has been transferred
-    // TODO: send ack
-
     send_string_constant(socket_fd, send_buffer, DOWNLOAD_FILE);
     recv_string_constant(socket_fd, send_buffer, recv_buffer, ACK);
 
@@ -180,18 +179,24 @@ void download_file(int socket_fd, int file_number) {
     send_string_constant(socket_fd, send_buffer, ACK);
 
     FILE *fp = open_file(filename, "w");
-
-    size_t total_bytes_received = 0, bytes_written, bytes_received;
-    while(total_bytes_received < requested_filesize) {
-        bytes_received = recv_data(socket_fd, recv_buffer);
-        total_bytes_received += bytes_received;
-        printf("%s\n", recv_buffer);
-        fwrite(recv_buffer, 1, bytes_received, fp);
-    }
-
+    size_t total_bytes_received = recv_and_write_file_from_socket(fp, requested_filesize, socket_fd, recv_buffer);
     fclose(fp);
 
     send_string_constant(socket_fd, send_buffer, ACK);
+
+    printf("%s File \"%s\" downloaded successfully. %zu bytes received.\n\n", PROMPT, filename, total_bytes_received);
+}
+
+void recv_and_print_directory_strings(int socket_fd, int num_files, char *send_buffer, char *recv_buffer) {
+    char filename[FILENAME_SIZE_MAX];
+    size_t bytes_received;
+    for (int i=1; i<=num_files; i++) {
+        clear_filename_array(filename);
+        bytes_received = recv_string(socket_fd, recv_buffer, filename);
+        send_string_constant(socket_fd, send_buffer, ACK);
+        printf("%d. ", i);
+        printf("%s\n", filename);
+    }
 }
 
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
@@ -202,4 +207,14 @@ size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, ch
         total_bytes_sent += bytes_sent;
     }
     return total_bytes_sent;
+}
+
+size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer) {
+    size_t total_bytes_received = 0, bytes_written, bytes_received;
+    while(total_bytes_received < filesize) {
+        bytes_received = recv_data(socket_fd, recv_buffer);
+        total_bytes_received += bytes_received;
+        fwrite(recv_buffer, 1, bytes_received, fp);
+    }
+    return total_bytes_received;
 }

@@ -1,3 +1,13 @@
+//********************************************************************
+//
+// Alexander Peters
+// Computer Networks
+// Programming Project #3: Simple FTP Server
+// October 27, 2019
+// Instructor: Dr. Ajay K. Katangur
+//
+//********************************************************************
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,13 +35,14 @@
 
 void *client_handler(void *client_socket_fd);
 
+// man action functions
 void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer);
-
 void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer);
-
 void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer);
 
+// lib combination functions
 size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer);
+size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer);
 
 // TODO: CREATE PTHREAD POOL
 
@@ -83,14 +94,14 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        printf("[+] received connection from %s\n", inet_ntoa(client_addr.sin_addr));
+        // printf("[+] received connection from %s\n", inet_ntoa(client_addr.sin_addr));
 
-        printf("[+] attempting to create client thread...\n");
         if (current_threads < MAX_CLIENT_THREADS) {
             pthread_t thread_id;
             pthread_create(&thread_id, NULL, client_handler, (void *)((long)client_fd));
+            printf("[%d] %d\n", current_threads + 1, client_fd);
         } else {
-            printf("[-] server is at capacity, refusing connection...\n");
+            printf("[-] Server is at capacity, refusing connection...\n");
             shutdown(client_fd, SHUT_RDWR);
             close(client_fd);
         }
@@ -130,7 +141,7 @@ void *client_handler(void *client_socket_fd) {
         }
     }
 
-    printf("[+] Saying goodbye...\n");
+    printf("[+] %d disconnected\n", client_fd);
 
     shutdown(client_fd, SHUT_RDWR);
     close(client_fd);
@@ -148,7 +159,7 @@ void send_directory_contents(int client_fd, char *send_buffer, char *recv_buffer
     bytes_sent = send_size_value(client_fd, send_buffer, directory_length);
     recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
 
-    char filename[260];
+    char filename[FILENAME_SIZE_MAX];
 
     // send each filename in a loop
     for (int i=1; i<=directory_length; i++) {
@@ -172,21 +183,8 @@ void recv_file_from_user(int client_fd, char *send_buffer, char *recv_buffer) {
     recv_string(client_fd, recv_buffer, filename);
     send_string_constant(client_fd, send_buffer, ACK);
 
-    FILE *fp = fopen(filename, "w");
-    if (fp == NULL) {
-        perror("fopen for writing");
-        exit(EXIT_FAILURE);
-    }
-
-    size_t total_bytes_received = 0, bytes_written, bytes_received;
-    while(total_bytes_received < incoming_filesize) {
-        bytes_received = recv_data(client_fd, recv_buffer);
-        total_bytes_received += bytes_received;
-        printf("%s\n", recv_buffer);
-        // write recv_buffer and amt bytes received to file with filename
-        fwrite(recv_buffer, 1, bytes_received, fp);
-    }
-
+    FILE *fp = open_file(filename, "w");
+    size_t total_bytes_received = recv_and_write_file_from_socket(fp, incoming_filesize, client_fd, recv_buffer);
     fclose(fp);
 
     send_string_constant(client_fd, send_buffer, ACK);
@@ -226,4 +224,14 @@ size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, ch
         total_bytes_sent += bytes_sent;
     }
     return total_bytes_sent;
+}
+
+size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer) {
+    size_t total_bytes_received = 0, bytes_written, bytes_received;
+    while(total_bytes_received < filesize) {
+        bytes_received = recv_data(socket_fd, recv_buffer);
+        total_bytes_received += bytes_received;
+        fwrite(recv_buffer, 1, bytes_received, fp);
+    }
+    return total_bytes_received;
 }
