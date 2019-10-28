@@ -98,7 +98,8 @@ int main(int argc, char *argv[]) {
 
         if (current_threads < MAX_CLIENT_THREADS) {
             pthread_t thread_id;
-            pthread_create(&thread_id, NULL, client_handler, (void *)((long)client_fd));
+            int *client_fd_ptr = &client_fd;
+            pthread_create(&thread_id, NULL, client_handler, (void *)(client_fd_ptr));
             printf("[%d] %d\n", current_threads + 1, client_fd);
         } else {
             printf("[-] Server is at capacity, refusing connection...\n");
@@ -135,7 +136,8 @@ int main(int argc, char *argv[]) {
 void *client_handler(void *client_socket_fd) {
     current_threads++;
 
-    int client_fd = (int)client_socket_fd;
+    int *client_fd_ptr = (int *)client_socket_fd;
+    int client_fd = *client_fd_ptr;
 
     size_t bytes_sent = 0;
     char send_buffer[BUFFER_SIZE];
@@ -294,74 +296,4 @@ void send_file_to_user(int client_fd, char *send_buffer, char *recv_buffer) {
     recv_string_constant(client_fd, send_buffer, recv_buffer, ACK);
 
     recv_string_constant(client_fd, send_buffer, recv_buffer, CLIENT_DONE);
-}
-
-//********************************************************************
-//
-// Read File and Send to Socket Function
-//
-// This function reads a file and sends it to the indicated socket
-// in increments.  
-// 
-// Return values
-// ---------------
-// Total number of bytes sent
-// 
-// Value parameters
-// ---------------
-// fp               FILE *      pointer to file to read from 
-// filesize         size_t      filesize of file to read from 
-// socket_fd        int         socket file descriptor
-// send_buffer      char *      send buffer 
-// 
-// Local variables
-// ---------------
-// total_bytes_sent     size_t      total bytes sent to client
-// bytes_read           size_t      bytes read by fread function
-// bytes_sent           size_t      incremental value of bytes sent to client
-//
-//********************************************************************
-size_t read_and_send_file_to_socket(FILE *fp, size_t filesize, int socket_fd, char *send_buffer) {
-    size_t total_bytes_sent = 0, bytes_read, bytes_sent;
-    while (total_bytes_sent < filesize) {
-        bytes_read = fread(send_buffer, 1, 1000, fp);
-        bytes_sent = send_data(socket_fd, send_buffer, bytes_read);
-        total_bytes_sent += bytes_sent;
-    }
-    return total_bytes_sent;
-}
-
-//********************************************************************
-//
-// Receive File and Write to File From Socket Function
-//
-// This function receives file data from the indicated socket and
-// writes it to the indicated file in increments.  
-// 
-// Return values
-// ---------------
-// Total number of bytes received
-// 
-// Value parameters
-// ---------------
-// fp               FILE *      pointer to file to read from 
-// filesize         size_t      filesize of file to read from 
-// socket_fd        int         socket file descriptor
-// recv_buffer      char *      receive buffer 
-// 
-// Local variables
-// ---------------
-// total_bytes_received     size_t      total bytes received from client
-// bytes_written            size_t      bytes written by fwrite function
-// bytes_received           size_t      incremental value of bytes received from client
-//
-//********************************************************************
-size_t recv_and_write_file_from_socket(FILE *fp, size_t filesize, int socket_fd, char *recv_buffer) {
-    size_t total_bytes_received = 0, bytes_written, bytes_received;
-    while(total_bytes_received < filesize) {
-        bytes_received = recv_data(socket_fd, recv_buffer);
-        total_bytes_received += bytes_received;
-        fwrite(recv_buffer, 1, bytes_received, fp);
-    }
-    return total_bytes_received;
 }
